@@ -1,0 +1,10 @@
+# Ignore the entire cards folder
+/cards/
+/cards/**
+cards
+cards/
+
+/cards_full/
+/cards_full/**
+cards_full
+cards_full/
