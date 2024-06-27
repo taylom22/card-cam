@@ -1,7 +1,7 @@
 import sys
 import json
 import os
-from PyQt5.QtWidgets import QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QSizePolicy, QMessageBox
+from PyQt5.QtWidgets import QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QMessageBox
 from PyQt5.QtCore import Qt, QTimer
 from PyQt5.QtGui import QImage, QPixmap, QPalette, QColor
 import cv2
@@ -17,28 +17,26 @@ class LorcanaDetector(QMainWindow):
         
         # Set dark purple background
         palette = QPalette()
-        # Background Color
         palette.setColor(QPalette.Window, QColor(48, 25, 52))  # Dark Purple Background
-        # Text Color
         palette.setColor(QPalette.WindowText, Qt.white)  # White text
         self.setPalette(palette)
         
         # Configuration variables
         self.TEMPLATE_SIZE = (200, 280)
-        self.ORB_FEATURES = 1000                # Default: 1000
-        self.MATCH_DISTANCE_THRESHOLD = 50      # Default: 50
-        self.MIN_GOOD_MATCHES = 15              # Default: 15
-        self.MIN_CARD_AREA = 10                 # Default: 100
-        self.MAX_CARD_AREA = 100000             # Default: 100000
-        self.DETECTION_INTERVAL = 3             # Default: 3
-        self.CONFIDENCE_THRESHOLD = 0.1         # Default: 0.1
+        self.ORB_FEATURES = 1000
+        self.MATCH_DISTANCE_THRESHOLD = 50
+        self.MIN_GOOD_MATCHES = 15
+        self.MIN_CARD_AREA = 100
+        self.MAX_CARD_AREA = 100000
+        self.DETECTION_INTERVAL = 3
+        self.CONFIDENCE_THRESHOLD = 0.05
 
         # Overlay Config
-        self.FONT = cv2.FONT_HERSHEY_SIMPLEX    # Default: cv2.FONT_HERSHEY_SIMPLEX
-        self.FONT_SCALE = 0.5                   # Default: 0.5
-        self.FONT_COLOR = (0, 255, 0)           # Default: (0, 255, 0)
-        self.FONT_THICKNESS = 1                 # Default: 1
-        self.LINE_SPACING = 20                  # Default: 20
+        self.FONT = cv2.FONT_HERSHEY_SIMPLEX
+        self.FONT_SCALE = 0.5
+        self.FONT_COLOR = (0, 255, 0)
+        self.FONT_THICKNESS = 1
+        self.LINE_SPACING = 20
 
         self.script_dir = os.path.dirname(os.path.abspath(__file__))
         
@@ -63,50 +61,37 @@ class LorcanaDetector(QMainWindow):
 
         self.image_label = QLabel(self)
         self.image_label.setAlignment(Qt.AlignCenter)
-        self.image_label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)  # Allow expansion
-        self.image_label.setMinimumSize(1, 1)  # Set a minimum size
         webcam_layout.addWidget(self.image_label)
 
         self.info_label = QLabel(self)
         self.info_label.setAlignment(Qt.AlignCenter)
         webcam_layout.addWidget(self.info_label)
 
-        # Create a widget for the identified card with a black background
+        # Create a widget for the identified cards
         card_widget = QWidget()
-        card_widget.setStyleSheet("background-color: black;")
-        card_layout = QVBoxLayout(card_widget)
-        card_layout.setAlignment(Qt.AlignCenter)  # Center the layout within the widget
+        self.card_layout = QVBoxLayout(card_widget)
 
-        self.card_name_label = QLabel(self)
-        self.card_name_label.setAlignment(Qt.AlignCenter)
-        self.card_name_label.setStyleSheet("color: white; font-size: 24px; font-weight: bold;")  # Large text for card name
-        card_layout.addWidget(self.card_name_label)
+        self.card_image_labels = [QLabel(self) for _ in range(2)]  # Adjust number of labels for multiple cards
+        for label in self.card_image_labels:
+            label.setAlignment(Qt.AlignCenter)
+            label.setFixedSize(300, 420)
+            self.card_layout.addWidget(label)
 
-        self.card_subname_label = QLabel(self)
-        self.card_subname_label.setAlignment(Qt.AlignCenter)
-        self.card_subname_label.setStyleSheet("color: white; font-size: 18px;")  # Smaller text for subname
-        card_layout.addWidget(self.card_subname_label)
-
-        self.card_image_label = QLabel(self)
-        self.card_image_label.setAlignment(Qt.AlignCenter)
-        self.card_image_label.setFixedSize(300, 420)
-        card_layout.addWidget(self.card_image_label)
-
-        self.card_info_label = QLabel(self)
-        self.card_info_label.setAlignment(Qt.AlignCenter)
-        self.card_info_label.setStyleSheet("color: white;")
-        card_layout.addWidget(self.card_info_label)
+        self.card_info_labels = [QLabel(self) for _ in range(2)]  # Adjust number of labels for multiple cards
+        for label in self.card_info_labels:
+            label.setAlignment(Qt.AlignCenter)
+            self.card_layout.addWidget(label)
 
         # Add both widgets to the main layout
-        self.layout.addWidget(webcam_widget, 2)  # Stretch factor to expand 2/3 of the frame
-        self.layout.addWidget(card_widget, 1)  # Stretch factor to expand 1/3 of the frame
+        self.layout.addWidget(webcam_widget)
+        self.layout.addWidget(card_widget)
 
         self.timer = QTimer(self)
         self.timer.timeout.connect(self.update_frame)
         self.timer.start(30)  # Update every 30 ms
 
     def init_camera(self):
-        self.cap = cv2.VideoCapture(0, cv2.CAP_DSHOW)  # Try using DirectShow
+        self.cap = cv2.VideoCapture(0, cv2.CAP_DSHOW)
         if not self.cap.isOpened():
             QMessageBox.critical(self, "Camera Error", "Could not open camera. Please check your camera connection and permissions.")
             sys.exit()
@@ -182,54 +167,37 @@ class LorcanaDetector(QMainWindow):
                 cv2.putText(frame, name, text_pos, 
                             self.FONT, self.FONT_SCALE, self.FONT_COLOR, self.FONT_THICKNESS)
 
-            if self.detected_cards:
-                new_card_id = self.detected_cards[0][0]
-                if new_card_id != self.last_detected_card_id:
-                    self.update_card_display(new_card_id)
-                    self.last_detected_card_id = new_card_id
+            self.update_card_display(self.detected_cards)
 
             frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
             h, w, ch = frame.shape
             bytes_per_line = ch * w
             qt_image = QImage(frame.data, w, h, bytes_per_line, QImage.Format_RGB888)
             pixmap = QPixmap.fromImage(qt_image)
-            self.image_label.setPixmap(pixmap.scaled(self.image_label.size(), Qt.KeepAspectRatio, Qt.SmoothTransformation))
+            self.image_label.setPixmap(pixmap)
         else:
             print("Failed to capture frame")
 
-    def update_card_display(self, card_id):
-        card_info = self.card_data[card_id]
-        effects_text = ', '.join(effect['text'] for effect in card_info.get('effects', []))
-        
-        # Set the card name and subname
-        self.card_name_label.setText(card_info['fullName'])
-        self.card_subname_label.setText(card_info.get('subname', ''))
+    def update_card_display(self, detected_cards):
+        for i, (card_id, pts, confidence) in enumerate(detected_cards):
+            if i >= len(self.card_image_labels):
+                break  # Limit to the number of labels available
 
-        # Set the card details below the image
-        info_text = (
-            f"Type: {card_info['type']}\n"
-            f"Cost: {card_info['cost']}\n"
-            f"Lore: {card_info.get('lore', 'N/A')}\n"
-            f"Strength: {card_info.get('strength', 'N/A')}\n"
-            f"Willpower: {card_info.get('willpower', 'N/A')}\n"
-            f"Rarity: {card_info.get('rarity', 'N/A')}\n"
-            f"Artist: {card_info.get('artist', 'N/A')}\n"
-            f"Story: {card_info.get('story', 'N/A')}\n"
-            f"Effects: {effects_text}"
-        )
-        self.card_info_label.setText(info_text)
+            card_info = self.card_data[card_id]
+            info_text = f"Name: {card_info['fullName']}\nType: {card_info['type']}\nCost: {card_info['cost']}"
+            self.card_info_labels[i].setText(info_text)
+            self.card_info_labels[i].setStyleSheet("color: white;")  # Set text color to white
 
-        # Set the card image
-        card_name = card_info['fullName'].replace(' ', '_')
-        card_image_path = os.path.join(self.script_dir, 'cards', f"{card_name}_Set{card_info['setNumber']}_Card{card_info['number']}_{card_info['color']}.png")
-        if os.path.exists(card_image_path):
-            pixmap = QPixmap(card_image_path)
-            pixmap = pixmap.scaled(300, 420, Qt.KeepAspectRatio, Qt.SmoothTransformation)
-            self.card_image_label.setPixmap(pixmap)
-        else:
-            print(f"No card found for {card_name}")
-            self.card_image_label.setText("Image not found")
-            self.card_image_label.setStyleSheet("color: white;")  # Set text color to white
+            card_name = card_info['fullName'].replace(' ', '_')
+            card_image_path = os.path.join(self.script_dir, 'cards', f"{card_name}_Set{card_info['setNumber']}_Card{card_info['number']}_{card_info['color']}.png")
+            if os.path.exists(card_image_path):
+                pixmap = QPixmap(card_image_path)
+                pixmap = pixmap.scaled(300, 420, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+                self.card_image_labels[i].setPixmap(pixmap)
+            else:
+                print(f"No card found for {card_name}")
+                self.card_image_labels[i].setText("Image not found")
+                self.card_image_labels[i].setStyleSheet("color: white;")  # Set text color to white
 
 if __name__ == '__main__':
     app = QApplication(sys.argv)
